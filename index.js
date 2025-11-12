@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { request, response } from 'express';
 import morgan from 'morgan';
 import mongoose from 'mongoose';
 import 'dotenv/config'
@@ -43,54 +43,77 @@ app.get('/api/persons', (request, response) => {
         .then(persons => {
             response.json(persons)
         })
+
+    // .catch(error => {
+    //     console.log(error)
+    //     response.status(500)
+    // })
 })
 
 app.get('/info', (request, response) => {
-    const countPersons = persons.length
+    // const countPersons = persons.length
 
-    const date = new Date()
+    Person.countDocuments({})
+        .then(count => {
 
-    const offsetMinutes = -date.getTimezoneOffset()
-    const sign = offsetMinutes >= 0 ? '+' : '-'
-    const hours = String(Math.floor(Math.abs(offsetMinutes) / 60)).padStart(2, '0')
-    const minutes = String(Math.abs(offsetMinutes) % 60).padStart(2, '0')
-    const offset = `${sign}${hours}${minutes}`
+            const date = new Date()
 
-    const day = date.toDateString()
-    const time = date.toTimeString().slice(0, 8)
-    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
+            const offsetMinutes = -date.getTimezoneOffset()
+            const sign = offsetMinutes >= 0 ? '+' : '-'
+            const hours = String(Math.floor(Math.abs(offsetMinutes) / 60)).padStart(2, '0')
+            const minutes = String(Math.abs(offsetMinutes) % 60).padStart(2, '0')
+            const offset = `${sign}${hours}${minutes}`
 
-    response.send(
-        `<p>Phonebook has info for ${countPersons} people</p>
-        <p>${day} ${time} ${offset} ${timeZone}</p>`)
+            const day = date.toDateString()
+            const time = date.toTimeString().slice(0, 8)
+            const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
+
+            response.send(
+                `<p>Phonebook has info for ${count} people</p>
+        <p>${day} ${time} ${offset} ${timeZone}</p>`
+            )
+        })
+        .catch(error => next(error))
 })
 
 app.get('/api/persons/:id', (request, response) => {
     const id = request.params.id
-    const person = persons.find(person => person.id === id)
-    if (person) {
-        response.json(person)
-    } else {
-        response.status(404).end()
-    }
+
+    Person.findById(id)
+        .then(person => {
+            if (person) {
+                response.json(person)
+            } else {
+                response.status(404).end()
+            }
+        })
+
+    // const person = persons.find(person => person.id === id)
+
 })
 
 app.delete('/api/persons/:id', (request, response) => {
     const id = request.params.id
 
-    persons = persons.filter(person => person.id !== id)
+    Person.findByIdAndDelete(id)
+        .then(result => {
+            response.status(200).end()
+        })
+        .catch(error => next(error))
 
-    response.status(204).end()
+    // persons = persons.filter(person => person.id !== id)
+
+    // response.status(204).end()
 })
 
-const generateRandomId = (existingPersons) => {
-    let id
-    do {
-        id = Math.floor(Math.random() * 1_000_000_000) + 1
+// const generateRandomId = (existingPersons) => {
+//     let id
+//     do {
+//         id = Math.floor(Math.random() * 1_000_000_000) + 1
 
-    } while (existingPersons.some(p => p.id === id));
-    return id
-}
+//     } while (existingPersons.some(p => p.id === id));
+//     return id
+// }
 
 app.post('/api/persons', (request, response) => {
     const body = request.body
@@ -105,23 +128,70 @@ app.post('/api/persons', (request, response) => {
         )
     }
 
-    if (persons.some(p => p.name === body.name)) {
-        return response.status(400).json({
-            error: 'name must be unique'
-        })
-    }
+    // if (person.some(p => p.name === body.name)) {
+    //     return response.status(400).json({
+    //         error: 'name must be unique'
+    //     })
+    // }
 
 
-    const person = {
-        id: generateRandomId(persons),
+    const person = new Person({
+        // id: generateRandomId(persons),
         name: body.name,
         number: body.number
     }
+    )
+    //     persons = persons.concat(person)
+    //     response.json(person);
 
-    persons = persons.concat(person)
-    response.json(person);
+    person.save()
+        .then(sevedPerson => {
+            response.json(sevedPerson);
+        })
 })
 
+app.put('/api/persons/:id', (request, response, next) => {
+    const { name, number } = request.body
+
+    const person = { name, number }
+
+    Person.findByIdAndUpdate(request.params.id, person, { new: true, runValidators: true, context: 'query' })
+        // .then(person => {
+        //     if (!person) {
+        //         return response.status(404).end()
+        //     }
+
+        //     person.name = name
+        //     person.number = number
+
+        //     return person.save()
+        //         .then(updatePerson => {
+        //             response.json(updatePerson)
+        //         })
+
+        .then(updatePerson => {
+            if (updatePerson) {
+                response.json(updatePerson)
+            } else {
+                response.status(404).end()
+            }
+        })
+        .catch(error => next(error))
+})
+
+// Обробники помилок Express
+
+const errorHandle = (error, request, response, next) => {
+    console.log(error.message);
+
+    if (error.name === 'CastError') {
+        return response.status(400).send({ error: 'malformatted id' })
+    }
+
+    next(error)
+}
+
+app.use(errorHandle)
 
 const PORT = process.env.PORT
 app.listen(PORT, () => {
