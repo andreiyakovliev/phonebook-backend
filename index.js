@@ -50,7 +50,7 @@ app.get('/api/persons', (request, response) => {
     // })
 })
 
-app.get('/info', (request, response) => {
+app.get('/info', (request, response, next) => {
     // const countPersons = persons.length
 
     Person.countDocuments({})
@@ -70,7 +70,7 @@ app.get('/info', (request, response) => {
 
             response.send(
                 `<p>Phonebook has info for ${count} people</p>
-        <p>${day} ${time} ${offset} ${timeZone}</p>`
+                <p>${day} ${time} ${offset} ${timeZone}</p>`
             )
         })
         .catch(error => next(error))
