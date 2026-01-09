@@ -1,30 +1,44 @@
-import mongoose from "mongoose";
+import mongoose from 'mongoose'
 
 mongoose.set('strictQuery', false)
 
 const url = process.env.MONGODB_URI
 
-console.log('connecting to:', url);
+console.log('connecting to:', url)
 
 mongoose.connect(url, { family: 4 })
-    .then(result => {
-        console.log('connected to MongoDB');
-    })
-    .catch(error => {
-        console.log('error connectint to MongoDB', error.message);
-    })
+  .then(() => {
+    console.log('connected to MongoDB')
+  })
+  .catch(error => {
+    console.log('error connectint to MongoDB', error.message)
+  })
 
 const personsSchema = new mongoose.Schema({
-    name: String,
-    number: String,
+  name: {
+    type: String,
+    minLength: 3,
+    required: true
+  },
+  number: {
+    type: String,
+    minLength: 8,
+    validate: {
+      validator: function (v) {
+        return /^\d{2,3}-\d+$/.test(v)
+      },
+      message: props => `${props.value} is not a valid phone number!`
+    },
+    required: [true, 'User phone number required']
+  },
 })
 
 personsSchema.set('toJSON', {
-    transform: (document, returnedObject) => {
-        returnedObject.id = returnedObject._id.toString()
-        delete returnedObject._id
-        delete returnedObject.__v
-    }
+  transform: (document, returnedObject) => {
+    returnedObject.id = returnedObject._id.toString()
+    delete returnedObject._id
+    delete returnedObject.__v
+  }
 })
 
 const Person = mongoose.model('Persons', personsSchema)
